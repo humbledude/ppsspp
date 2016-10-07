@@ -1,4 +1,4 @@
-# vim:noexpandtab:
+﻿# vim:noexpandtab:
 cmake_minimum_required(VERSION 2.8.8)
 project(PPSSPP)
 enable_language(ASM)
@@ -409,6 +409,7 @@ if(WIN32)
 	target_link_libraries(Common winmm)
 endif()
 
+
 if(NOT USING_GLES2)
 	include_directories(${OPENGL_INCLUDE_DIR})
 	find_package(GLEW)
@@ -427,13 +428,7 @@ else()
 	find_package(X11)
 endif()
 
-find_package(Snappy)
-if(SNAPPY_FOUND)
-	add_definitions(-DSHARED_SNAPPY)
-else()
-	add_subdirectory(ext/snappy)
-endif()
-
+add_subdirectory(ext/snappy)
 add_subdirectory(ext/udis86)
 
 add_library(vjson STATIC
@@ -724,6 +719,7 @@ else()
 	include_directories(ext/native/ext/libzip)
 	set(LIBZIP_LIBRARY libzip)
 endif()
+
 
 # FindPNG does a few things we don't want. So do it ourselves. Fixed to libpng17
 find_path(PNG_PNG_INCLUDE_DIR NAMES "libpng17/png.h")
@@ -1497,12 +1493,13 @@ add_library(${CoreLibName} ${CoreLinkType}
 	Core/Util/ppge_atlas.cpp
 	Core/Util/ppge_atlas.h
 	${CORE_NEON}
-	$<TARGET_OBJECTS:GPU>
+#	$<TARGET_OBJECTS:GPU>
 	Globals.h
 	git-version.cpp)
 target_link_libraries(${CoreLibName} Common native kirk cityhash sfmt19937 xbrz xxhash
 	${CoreExtraLibs} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES} ${X11_LIBRARIES} ${CMAKE_DL_LIBS})
 setup_target_project(${CoreLibName} Core)
+
 
 # Generate git-version.cpp at build time.
 add_custom_target(GitVersion ALL
