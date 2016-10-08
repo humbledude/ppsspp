@@ -6,8 +6,12 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/CMakeTests)
 
 add_definitions(-DPPSSPP)
 
-# None of these platforms support Vulkan yet.
-add_definitions(-DNO_VULKAN)
+# Of the CMake platforms, only Android supports Vulkan.
+if(NOT ANDROID)
+  add_definitions(-DNO_VULKAN)
+else()
+  set(VULKAN ON)
+endif()
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set(_ARCH_64 1)
@@ -380,7 +384,7 @@ if(WIN32)
 		Common/stdafx.h)
 endif()
 
-if(ANDROID OR WIN32)
+if(VULKAN)
   set(CommonExtra ${CommonExtra}
     Common/Vulkan/SPIRVDisasm.cpp
     Common/Vulkan/SPIRVDisasm.h
@@ -818,6 +822,14 @@ endif()
 
 
 if(ANDROID)
+  set(nativeExtra ${nativeExtra}
+    Common/GL/GLInterface/EGLAndroid.cpp
+    Common/GL/GLInterface/EGLAndroid.h
+    Common/GL/GLInterface/EGL.cpp
+    Common/GL/GLInterface/EGL.h
+    Common/GL/GLInterface/GLInterface.cpp
+    Common/GL/GLInterfaceBase.h)
+
 	set(nativeExtra ${nativeExtra}
 		ext/native/base/NativeApp.h
 		android/jni/app-android.cpp
@@ -926,11 +938,19 @@ set(NativeAppSource
 	UI/ProfilerDraw.cpp
 	UI/ui_atlas.cpp
 	UI/ComboKeyMappingScreen.cpp)
+
 if(ANDROID)
 	if (ARM)
 		set(NativeAppSource ${NativeAppSource} android/jni/ArmEmitterTest.cpp)
+  elseif (ARM64)
+		set(NativeAppSource ${NativeAppSource} android/jni/Arm64EmitterTest.cpp)
 	endif()
 	set(nativeExtra ${nativeExtra} ${NativeAppSource})
+endif()
+
+set(THIN3D_PLATFORMS ext/native/thin3d/thin3d_gl.cpp)
+if(VULKAN)
+  set(THIN3D_PLATFORMS ${THIN3D_PLATFORMS} ext/native/thin3d/thin3d_vulkan.cpp)
 endif()
 
 add_library(native STATIC
@@ -1036,7 +1056,7 @@ add_library(native STATIC
 	ext/native/profiler/profiler.h
 	ext/native/thin3d/thin3d.cpp
 	ext/native/thin3d/thin3d.h
-	ext/native/thin3d/thin3d_gl.cpp
+	${THIN3D_PLATFORMS}
 	ext/native/thread/executor.cpp
 	ext/native/thread/executor.h
 	ext/native/thread/prioritizedworkqueue.cpp
@@ -1124,6 +1144,14 @@ include_directories(ext/xxhash)
 
 set(CoreExtra)
 set(CoreExtraLibs)
+
+if(ANDROID)
+  set(CoreExtraLibs ${CoreExtraLibs} native_audio)
+endif()
+
+if(VULKAN)
+  set(CoreExtraLibs ${CoreExtraLibs} glslang)
+endif()
 
 set(CoreExtra ${CoreExtra}
 	Core/MIPS/IR/IRCompALU.cpp
@@ -1524,8 +1552,14 @@ add_library(${CoreLibName} ${CoreLinkType}
 	$<TARGET_OBJECTS:GPU>
 	Globals.h
 	git-version.cpp)
+
+if(ANDROID)
+  set(CoreExtraLibs ${CoreExtraLibs} android)
+endif()	
+
 target_link_libraries(${CoreLibName} Common native kirk cityhash sfmt19937 xbrz xxhash
 	${CoreExtraLibs} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES} ${X11_LIBRARIES} ${CMAKE_DL_LIBS})
+
 setup_target_project(${CoreLibName} Core)
 
 
@@ -1543,7 +1577,109 @@ add_dependencies(${CoreLibName} GitVersion)
 if(ARMV7 OR ARM64)
 	set(GPU_NEON GPU/Common/TextureDecoderNEON.cpp)
 endif()
+
+set(GPU_GLES
+	GPU/GLES/DepalettizeShader.cpp
+	GPU/GLES/DepalettizeShader.h
+	GPU/GLES/FBO.cpp
+	GPU/GLES/FBO.h
+	GPU/GLES/GPU_GLES.cpp
+	GPU/GLES/GPU_GLES.h
+	GPU/GLES/GLStateCache.cpp
+	GPU/GLES/GLStateCache.h
+	GPU/GLES/FragmentShaderGenerator.cpp
+	GPU/GLES/FragmentShaderGenerator.h
+	GPU/GLES/FragmentTestCache.cpp
+	GPU/GLES/FragmentTestCache.h
+	GPU/GLES/Framebuffer.cpp
+	GPU/GLES/Framebuffer.h
+	GPU/GLES/ShaderManager.cpp
+	GPU/GLES/ShaderManager.h
+	GPU/GLES/StateMapping.cpp
+	GPU/GLES/StateMapping.h
+	GPU/GLES/StencilBuffer.cpp
+	GPU/GLES/TextureCache.cpp
+	GPU/GLES/TextureCache.h
+	GPU/GLES/TextureScaler.cpp
+	GPU/GLES/TextureScaler.h
+	GPU/GLES/DrawEngineGLES.cpp
+	GPU/GLES/DrawEngineGLES.h
+	GPU/GLES/VertexShaderGenerator.cpp
+	GPU/GLES/VertexShaderGenerator.h
+)
+
+set(GPU_VULKAN
+  GPU/Vulkan/DepalettizeShaderVulkan.cpp
+	GPU/Vulkan/DepalettizeShaderVulkan.h
+	GPU/Vulkan/DrawEngineVulkan.cpp
+	GPU/Vulkan/DrawEngineVulkan.h
+	GPU/Vulkan/FragmentShaderGeneratorVulkan.cpp
+	GPU/Vulkan/FragmentShaderGeneratorVulkan.h
+	GPU/Vulkan/FramebufferVulkan.cpp
+	GPU/Vulkan/FramebufferVulkan.h
+	GPU/Vulkan/GPU_Vulkan.cpp
+	GPU/Vulkan/GPU_Vulkan.h
+	GPU/Vulkan/PipelineManagerVulkan.cpp
+	GPU/Vulkan/PipelineManagerVulkan.h
+	GPU/Vulkan/ShaderManagerVulkan.cpp
+	GPU/Vulkan/ShaderManagerVulkan.h
+	GPU/Vulkan/StateMappingVulkan.cpp
+	GPU/Vulkan/StateMappingVulkan.h
+	GPU/Vulkan/TextureCacheVulkan.cpp
+	GPU/Vulkan/TextureCacheVulkan.h
+	GPU/Vulkan/TextureScalerVulkan.cpp
+	GPU/Vulkan/TextureScalerVulkan.h
+	GPU/Vulkan/VertexShaderGeneratorVulkan.cpp
+	GPU/Vulkan/VertexShaderGeneratorVulkan.h
+	GPU/Vulkan/VulkanUtil.cpp
+	GPU/Vulkan/VulkanUtil.h
+)
+
+set(GPU_IMPLS ${GPU_GLES})
+if(VULKAN)
+  set(GPU_IMPLS ${GPU_IMPLS} ${GPU_VULKAN})
+endif()
+
+add_library(glslang
+  ext/glslang/glslang/GenericCodeGen/CodeGen.cpp
+  ext/glslang/glslang/GenericCodeGen/Link.cpp
+  ext/glslang/glslang/MachineIndependent/Constant.cpp
+  ext/glslang/glslang/MachineIndependent/glslang_tab.cpp
+  ext/glslang/glslang/MachineIndependent/InfoSink.cpp
+  ext/glslang/glslang/MachineIndependent/Initialize.cpp
+  ext/glslang/glslang/MachineIndependent/Intermediate.cpp
+  ext/glslang/glslang/MachineIndependent/intermOut.cpp
+  ext/glslang/glslang/MachineIndependent/IntermTraverse.cpp
+  ext/glslang/glslang/MachineIndependent/limits.cpp
+  ext/glslang/glslang/MachineIndependent/linkValidate.cpp
+  ext/glslang/glslang/MachineIndependent/parseConst.cpp
+  ext/glslang/glslang/MachineIndependent/ParseHelper.cpp
+  ext/glslang/glslang/MachineIndependent/PoolAlloc.cpp
+  ext/glslang/glslang/MachineIndependent/reflection.cpp
+  ext/glslang/glslang/MachineIndependent/RemoveTree.cpp
+  ext/glslang/glslang/MachineIndependent/Scan.cpp
+  ext/glslang/glslang/MachineIndependent/ShaderLang.cpp
+  ext/glslang/glslang/MachineIndependent/SymbolTable.cpp
+  ext/glslang/glslang/MachineIndependent/Versions.cpp
+  ext/glslang/glslang/MachineIndependent/preprocessor/Pp.cpp
+  ext/glslang/glslang/MachineIndependent/preprocessor/PpAtom.cpp
+  ext/glslang/glslang/MachineIndependent/preprocessor/PpContext.cpp
+  ext/glslang/glslang/MachineIndependent/preprocessor/PpMemory.cpp
+  ext/glslang/glslang/MachineIndependent/preprocessor/PpScanner.cpp
+  ext/glslang/glslang/MachineIndependent/preprocessor/PpSymbols.cpp
+  ext/glslang/glslang/MachineIndependent/preprocessor/PpTokens.cpp
+  ext/glslang/glslang/OSDependent/Unix/ossource.cpp
+  ext/glslang/SPIRV/disassemble.cpp
+  ext/glslang/SPIRV/doc.cpp
+  ext/glslang/SPIRV/GlslangToSpv.cpp
+  ext/glslang/SPIRV/InReadableOrder.cpp
+  ext/glslang/SPIRV/SpvBuilder.cpp
+  ext/glslang/SPIRV/SPVRemapper.cpp
+  ext/glslang/OGLCompilersDLL/InitializeDll.cpp)
+
 add_library(GPU OBJECT
+  ${GPU_NEON}
+  ${GPU_IMPLS}
 	GPU/Common/DepalettizeShaderCommon.cpp
 	GPU/Common/DepalettizeShaderCommon.h
 	GPU/Common/FramebufferCommon.cpp
@@ -1579,33 +1715,6 @@ add_library(GPU OBJECT
 	GPU/Debugger/Breakpoints.h
 	GPU/Debugger/Stepping.cpp
 	GPU/Debugger/Stepping.h
-	GPU/GLES/DepalettizeShader.cpp
-	GPU/GLES/DepalettizeShader.h
-	GPU/GLES/FBO.cpp
-	GPU/GLES/FBO.h
-	GPU/GLES/GPU_GLES.cpp
-	GPU/GLES/GPU_GLES.h
-	GPU/GLES/GLStateCache.cpp
-	GPU/GLES/GLStateCache.h
-	GPU/GLES/FragmentShaderGenerator.cpp
-	GPU/GLES/FragmentShaderGenerator.h
-	GPU/GLES/FragmentTestCache.cpp
-	GPU/GLES/FragmentTestCache.h
-	GPU/GLES/Framebuffer.cpp
-	GPU/GLES/Framebuffer.h
-	GPU/GLES/ShaderManager.cpp
-	GPU/GLES/ShaderManager.h
-	GPU/GLES/StateMapping.cpp
-	GPU/GLES/StateMapping.h
-	GPU/GLES/StencilBuffer.cpp
-	GPU/GLES/TextureCache.cpp
-	GPU/GLES/TextureCache.h
-	GPU/GLES/TextureScaler.cpp
-	GPU/GLES/TextureScaler.h
-	GPU/GLES/DrawEngineGLES.cpp
-	GPU/GLES/DrawEngineGLES.h
-	GPU/GLES/VertexShaderGenerator.cpp
-	GPU/GLES/VertexShaderGenerator.h
 	GPU/GPUInterface.h
 	GPU/GeDisasm.cpp
 	GPU/GeDisasm.h
