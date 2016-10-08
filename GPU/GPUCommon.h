@@ -196,7 +196,7 @@ protected:
 private:
 	// For CPU/GPU sync.
 #ifdef ANDROID
-	std::atomic<u64> curTickEst_;
+	alignas(16) std::atomic<u64> curTickEst_;
 #else
 	volatile MEMORY_ALIGNED16(u64) curTickEst_;
 	recursive_mutex curTickEstLock_;
