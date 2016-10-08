@@ -5,6 +5,7 @@ enable_language(ASM)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/CMakeTests)
 
 add_definitions(-DPPSSPP)
+add_definitions(-D__STDC_CONSTANT_MACROS)
 
 # Of the CMake platforms, only Android supports Vulkan.
 if(NOT ANDROID)
@@ -834,12 +835,9 @@ if(ANDROID)
 		ext/native/base/NativeApp.h
 		android/jni/app-android.cpp
 		android/jni/native_audio.cpp
-		android/jni/native_audio.h)
-
-	add_library(native_audio SHARED
+		android/jni/native_audio.h
 		android/jni/native-audio-so.cpp
 		android/jni/native-audio-so.h)
-	target_link_libraries(native_audio OpenSLES log)
 	# No target
 elseif(IOS)
 	set(nativeExtra ${nativeExtra}
@@ -1102,7 +1100,7 @@ endif()
 target_link_libraries(native ${LIBZIP_LIBRARY} ${ZLIB_LIBRARY} ${PNG_LIBRARY} rg_etc1 vjson snappy udis86 ${RT_LIB} ${GLEW_LIBRARIES})
 
 if(ANDROID)
-	target_link_libraries(native log EGL)
+	target_link_libraries(native log EGL OpenSLES)
 elseif(WIN32)
 	target_link_libraries(native ws2_32 winmm)
 endif()
@@ -1144,10 +1142,6 @@ include_directories(ext/xxhash)
 
 set(CoreExtra)
 set(CoreExtraLibs)
-
-if(ANDROID)
-  set(CoreExtraLibs ${CoreExtraLibs} native_audio)
-endif()
 
 if(VULKAN)
   set(CoreExtraLibs ${CoreExtraLibs} glslang)
