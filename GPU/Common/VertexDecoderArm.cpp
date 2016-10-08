@@ -20,6 +20,10 @@
 #define ARM
 #endif
 
+#ifdef ARM64
+#error Should not build this on ARM64
+#endif
+
 #include <stddef.h>
 
 #include "base/logging.h"

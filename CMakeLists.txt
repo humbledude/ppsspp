@@ -24,14 +24,20 @@ if(CMAKE_SYSTEM_PROCESSOR)
 		if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^armv7")
 			set(ARMV7 ON)
 		endif()
+	elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^aarch64")
+	  set(ARM64 ON)
+	  add_definitions(-DARM64)
 	elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^x86" OR
 		${CMAKE_SYSTEM_PROCESSOR} MATCHES "^amd64" OR
 		${CMAKE_SYSTEM_PROCESSOR} MATCHES "i.86")
 		set(X86 ON)
 	elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^mips")
 		set(MIPS ON)
+	else()
+    message("Unknown CMAKE_SYSTEM_PROCESSOR: ${CMAKE_SYSTEM_PROCESSOR}")
 	endif()
 endif()
+
 
 # Using ccache greatly improves the speed of our CI builds, let's enable for all.
 # Without this, our CI can't use ccache for clang, for some reason.
@@ -120,11 +126,9 @@ option(SIMULATOR "Set to ON when targeting an x86 simulator of an ARM platform" 
 option(USE_FFMPEG "Build with FFMPEG support" ${USE_FFMPEG})
 option(USE_SYSTEM_FFMPEG "Dynamically link against system FFMPEG" ${USE_SYSTEM_FFMPEG})
 
-if(ANDROID OR BLACKBERRY OR IOS)
+if(BLACKBERRY OR IOS)
 	if (NOT CMAKE_TOOLCHAIN_FILE)
-		if (ANDROID)
-			set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/android/android.toolchain.cmake)
-		elseif(BLACKBERRY)
+		if(BLACKBERRY)
 			set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/Blackberry/bb.toolchain.cmake)
 		elseif(IOS)
 			set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/ios/ios.toolchain.cmake)
@@ -141,6 +145,7 @@ endif()
 if(ANDROID)
 	set(CoreLibName ppsspp_jni)
 	set(CoreLinkType SHARED)
+	set(USING_GLES2 ON)
 else()
 	set(CoreLibName Core)
 	set(CoreLinkType STATIC)
@@ -220,29 +225,33 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 if(ARMV7)
-	message("Building for ARMv7, ${CMAKE_BUILD_TYPE}")
+	message("Generating for ARMv7, ${CMAKE_BUILD_TYPE}")
 elseif(ARM)
-	message("Building for ARMv6, ${CMAKE_BUILD_TYPE}")
+	message("Generating for ARMv6, ${CMAKE_BUILD_TYPE}")
 elseif(MIPS AND X86)
-	message("Building for MIPS in x86 mode, ${CMAKE_BUILD_TYPE}")
+	message("Generating for MIPS in x86 mode, ${CMAKE_BUILD_TYPE}")
 elseif(MIPS)
-	message("Buildings for MIPS, ${CMAKE_BUILD_TYPE}")
+	message("Generating for MIPS, ${CMAKE_BUILD_TYPE}")
 elseif(X86)
-	message("Building for x86, ${CMAKE_BUILD_TYPE}")
+	message("Generating for x86, ${CMAKE_BUILD_TYPE}")
+elseif(ARM64)
+  message("Generating for ARMv8, ${CMAKE_BUILD_TYPE}")
 else()
-	message("Building for Generic, ${CMAKE_BUILD_TYPE}")
+	message("What? Generating for Generic, ${CMAKE_BUILD_TYPE}")
 endif()
 
 if(NOT MSVC)
-	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -D_DEBUG")
-	set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -Os -D_NDEBUG")
-	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -D_NDEBUG")
-	set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -g -D_NDEBUG")
-	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -D_DEBUG")
-	set(CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} -Os -D_NDEBUG")
-	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -D_NDEBUG")
-	set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O2 -g -D_NDEBUG")
-
+  if (NOT ANDROID)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -D_DEBUG")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -Os -D_NDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -D_NDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -g -D_NDEBUG")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -D_DEBUG")
+    set(CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} -Os -D_NDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -D_NDEBUG")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O2 -g -D_NDEBUG")
+  endif()
+ 
 	# Disable some warnings
 	add_definitions(-Wno-multichar)
 	add_definitions(-fno-strict-aliasing)
@@ -320,11 +329,19 @@ endmacro()
 set(CommonExtra)
 if(ARM)
 	set(CommonExtra ${CommonExtra}
-		Common/ArmCPUDetect.cpp)
-if(ARMV7)
-	set(CommonExtra ${CommonExtra}
-		Common/ColorConvNEON.cpp)
-endif()
+		Common/ArmCPUDetect.cpp
+    Common/ArmEmitter.h
+    Common/ArmEmitter.cpp)
+  if(ARMV7)
+    set(CommonExtra ${CommonExtra}
+      Common/ColorConvNEON.cpp)
+  endif()
+elseif(ARM64)
+  set(CommonExtra ${CommonExtra}
+      Common/ArmCPUDetect.cpp
+      Common/Arm64Emitter.h
+      Common/Arm64Emitter.cpp
+      Common/ColorConvNEON.cpp)
 elseif(X86)
 	set(CommonExtra ${CommonExtra}
 		Common/ABI.cpp
@@ -355,17 +372,26 @@ set(CommonExtra ${CommonExtra}
 		Common/ArmEmitter.h
 		Common/ArmEmitter.cpp
 		Core/Util/DisArm64.cpp)
-else()
-#Blackberry appears to depend on this being here, should clean it up.
-set(CommonExtra ${CommonExtra}
-		Common/ArmEmitter.h
-		Common/ArmEmitter.cpp)
 endif()
 
 if(WIN32)
 	set(CommonExtra ${CommonExtra}
 		Common/stdafx.cpp
 		Common/stdafx.h)
+endif()
+
+if(ANDROID OR WIN32)
+  set(CommonExtra ${CommonExtra}
+    Common/Vulkan/SPIRVDisasm.cpp
+    Common/Vulkan/SPIRVDisasm.h
+    Common/Vulkan/VulkanContext.cpp
+    Common/Vulkan/VulkanContext.h
+    Common/Vulkan/VulkanImage.cpp
+    Common/Vulkan/VulkanImage.h
+    Common/Vulkan/VulkanLoader.cpp
+    Common/Vulkan/VulkanLoader.h
+    Common/Vulkan/VulkanMemory.cpp
+    Common/Vulkan/VulkanMemory.h)
 endif()
 
 add_library(Common STATIC
@@ -458,6 +484,8 @@ if(USE_FFMPEG)
 					set(PLATFORM_ARCH "android/arm")
 				elseif(X86)
 					set(PLATFORM_ARCH "android/x86")
+				elseif(ARM64)
+				  set(PLATFORM_ARCH "android/arm64")
 				endif()
 			elseif(BLACKBERRY)
 				set(PLATFORM_ARCH "blackberry/armv7")
@@ -1151,7 +1179,7 @@ elseif(ARM64)
 		Core/MIPS/ARM64/Arm64RegCache.h
 		Core/MIPS/ARM64/Arm64RegCacheFPU.cpp
 		Core/MIPS/ARM64/Arm64RegCacheFPU.h
-		GPU/Common/VertexDecoderArm.cpp
+		GPU/Common/VertexDecoderArm64.cpp
 		Core/Util/DisArm64.cpp)
 elseif(X86)
 	set(CoreExtra ${CoreExtra}
@@ -1493,7 +1521,7 @@ add_library(${CoreLibName} ${CoreLinkType}
 	Core/Util/ppge_atlas.cpp
 	Core/Util/ppge_atlas.h
 	${CORE_NEON}
-#	$<TARGET_OBJECTS:GPU>
+	$<TARGET_OBJECTS:GPU>
 	Globals.h
 	git-version.cpp)
 target_link_libraries(${CoreLibName} Common native kirk cityhash sfmt19937 xbrz xxhash
@@ -1512,7 +1540,7 @@ set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/git-version.cpp
 	PROPERTIES GENERATED TRUE)
 add_dependencies(${CoreLibName} GitVersion)
 
-if(ARMV7)
+if(ARMV7 OR ARM64)
 	set(GPU_NEON GPU/Common/TextureDecoderNEON.cpp)
 endif()
 add_library(GPU OBJECT
@@ -1544,7 +1572,6 @@ add_library(GPU OBJECT
 	GPU/Common/TextureCacheCommon.h
 	GPU/Common/TextureScalerCommon.cpp
 	GPU/Common/TextureScalerCommon.h
-	${GPU_NEON}
 	GPU/Common/PostShader.cpp
 	GPU/Common/PostShader.h
 	GPU/Common/SplineCommon.h
@@ -1788,5 +1815,3 @@ if(IOS)
         XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "-"
 	)
 endif()
-
-#include(CPack)
