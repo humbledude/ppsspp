@@ -4,6 +4,8 @@ project(PPSSPP)
 enable_language(ASM)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/CMakeTests)
 
+set(CMAKE_CXX_STANDARD 11)
+
 add_definitions(-DPPSSPP)
 add_definitions(-D__STDC_CONSTANT_MACROS)
 

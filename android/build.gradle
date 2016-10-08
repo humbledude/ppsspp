@@ -16,7 +16,6 @@ android {
 			cmake {
 				// Available arguments are inside ${SDK}/cmake/android.toolchain.cmake file
 				arguments '-DANDROID=true', '-DANDROID_PLATFORM=android-15', '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=gnustl_static'
-				cppFlags "-std=c++11"
 			}
 		}
 	}
