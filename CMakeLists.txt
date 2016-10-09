@@ -1,10 +1,13 @@
 ﻿# vim:noexpandtab:
-cmake_minimum_required(VERSION 2.8.8)
+cmake_minimum_required(VERSION 3.1.0)
 project(PPSSPP)
+
+#This is supposed to work but doesn't!
+#set(CMAKE_CXX_STANDARD 11)
+#set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 enable_language(ASM)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/CMakeTests)
-
-set(CMAKE_CXX_STANDARD 11)
 
 add_definitions(-DPPSSPP)
 add_definitions(-D__STDC_CONSTANT_MACROS)
@@ -256,9 +259,8 @@ if(ARM64)
 endif()
 
 if(NOT MSVC)
-
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
   if (NOT ANDROID)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -D_DEBUG")
     set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -Os -D_NDEBUG")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -D_NDEBUG")
@@ -1570,9 +1572,12 @@ add_library(${CoreLibName} ${CoreLinkType}
 
 if(ANDROID)
   set(CoreExtraLibs ${CoreExtraLibs} android)
+  if(X86_64)
+    set(CoreExtraLibs -Wl,--gc-sections -Wl,--exclude-libs,ALL)
+  endif()
 endif()	
 
-target_link_libraries(${CoreLibName} Common native kirk cityhash sfmt19937 xbrz xxhash
+target_link_libraries(${CoreLibName} Common native kirk cityhash sfmt19937 xbrz xxhash glslang
 	${CoreExtraLibs} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES} ${X11_LIBRARIES} ${CMAKE_DL_LIBS})
 
 setup_target_project(${CoreLibName} Core)
